@@ -168,6 +168,16 @@ def one_draw(
                 for start, end in zip(starts, ends):
                     checks.append((start, end))
 
+                # WARNING: I'm not sure about these checks
+                #  It's an attempt to do something about the problem described here:
+                #  https://discourse.mc-stan.org/t/nuts-misses-u-turns-runs-in-circles-until-max-treedepth/9727
+                if uturn_depth > 1:
+                    half_div_length = div_length >> 1
+                    # Add the start of left to start of right check
+                    checks.append((0, half_div_length))
+                    # Add the end of left to end of right check
+                    checks.append((half_div_length - 1, div_length - 1))
+
         # Sort into order that checks happen
         checks.sort(key=lambda x: x[1])
 

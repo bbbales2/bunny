@@ -155,54 +155,51 @@ def sample(
 
 def warmup_and_sample(
     value_and_grad: Callable[[numpy.ndarray], Tuple[float, numpy.ndarray]],
-    size: int,
+    rng: numpy.random.Generator,
+    initial_draw: numpy.ndarray,
     num_draws: int = 200,
     num_warmup: int = 1000,
     chains: int = 4,
-    init: int = 2,
     thin: int = 1,
     target_acceptance_rate: float = 0.85
 ):
     """
     Sample the target log density using NUTS given the value and gradient of the negative
     log density.
-    Sample using `chains` different chains with parameters initialized in unconstrained
-    space [-2, 2]. Use `num_warmup` draws to warmup and collect `num_draws` draws in each
+    Use `num_warmup` draws to warmup and collect `num_draws` draws in each
     chain after warmup.
     If `thin` is greater than 1, then compute internally `num_draws * thin` draws and
     output only every `thin` draws (so the output is size `num_draws`).
     `target_acceptance_rate` is the target acceptance rate for adaptation. Should be less
     than one and greater than zero.
     """
-    # Currently only doing warmup on one chain
-    rng = numpy.random.default_rng()
-
-    initial_position = 2 * init * rng.uniform(size=(size)) - init
-
     assert target_acceptance_rate < 1.0 and target_acceptance_rate > 0.0
     assert num_warmup > 200
+    assert len(initial_draw.shape) == 1
+
+    size = initial_draw.shape[0]
 
     # Ordered as (draws, chains, param)
     unconstrained_draws = numpy.zeros((num_draws, chains, size))
-    leapfrog_steps = numpy.zeros((num_draws, chains), dtype=int)
-    divergences = numpy.zeros((num_draws, chains), dtype=bool)
+    #leapfrog_steps = numpy.zeros((num_draws, chains), dtype=int)
+    #divergences = numpy.zeros((num_draws, chains), dtype=bool)
 
     def generate_draws():
         stage_1_size = 100
         stage_3_size = 50
         stage_2_size = num_warmup - stage_1_size - stage_3_size
 
-        initial_draw, stepsize, diagonal_inverse_metric = warmup(
+        initial_draw_for_sample, stepsize, diagonal_inverse_metric = warmup(
             value_and_grad,
             rng,
-            initial_position,
+            initial_draw,
             target_accept_stat=target_acceptance_rate,
             stage_1_size=stage_1_size,
             stage_2_size=stage_2_size,
             stage_3_size=stage_3_size,
         )
 
-        return sample(value_and_grad, rng, initial_draw, stepsize, diagonal_inverse_metric, num_draws, thin)
+        return sample(value_and_grad, rng, initial_draw_for_sample, stepsize, diagonal_inverse_metric, num_draws, thin)
 
     with ThreadPoolExecutor(max_workers=chains) as e:
         results = []
